@@ -1,4 +1,5 @@
-enum Instruction {
+#[derive(PartialEq)]
+pub enum Instruction {
     // 0nnn SYS addr
     Sys(u8),
 
