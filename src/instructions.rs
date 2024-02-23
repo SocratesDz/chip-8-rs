@@ -1,7 +1,7 @@
 #[derive(PartialEq)]
 pub enum Instruction {
     // 0nnn SYS addr
-    Sys(u8),
+    Sys(u16),
 
     // 00E0 CLS
     ClearScreen,
