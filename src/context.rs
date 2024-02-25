@@ -1,11 +1,11 @@
 #[cfg(test)]
 mod test {
-    use crate::{instructions::Instruction, parser::parse_insruction};
+    use crate::{instructions::Instruction, parser::parse_instruction};
 
     fn assert_instruction(input: [u8; 2], output: Instruction) {
-        let instruction = parse_insruction(input);
+        let instruction = parse_instruction(input);
 
-        assert_eq!(instruction, output);
+        assert_eq!(instruction, Ok(output));
     }
 
     #[test]
