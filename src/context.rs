@@ -35,7 +35,7 @@ mod test {
             [upper, _] if upper & 0x0 == 0x0 => Instruction::Sys(u16::from_be_bytes(source)),
             [0x00u8, 0xEEu8] => Instruction::ClearScreen,
             [upper, lower] if upper & 0x60 == 0x60 => Instruction::Set(upper ^ 0x60, lower),
-            _ => Instruction::Sys(0x00u16)
+            _ => Instruction::Sys(0x00u16),
         }
     }
 }
