@@ -64,10 +64,10 @@ pub enum Instruction {
     SkipIfNotEqualReg(u8, u8),
 
     // Annn LD I, addr
-    SetI(u8),
+    SetI(u16),
 
     // Bnnn JP V0, addr
-    JumpToPlusV0(u8),
+    JumpToPlusV0(u16),
 
     // Cxkk RND Vx, byte
     SetRandom(u8, u8),
@@ -86,10 +86,10 @@ pub enum Instruction {
     SetDelayTimer(u8),
 
     // Fx0A LD Vx, K
-    WaitForKey(u8, u8),
+    WaitForKey(u8),
 
     // Fx15 LD DT, Vx
-    SetDelayTimerReg(u8, u8),
+    SetDelayTimerReg(u8),
 
     // Fx18 LD ST, Vx
     SetSoundTimerReg(u8),
