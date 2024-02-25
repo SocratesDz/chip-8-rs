@@ -1,4 +1,4 @@
-#[derive(PartialEq)]
+#[derive(PartialEq, Debug)]
 pub enum Instruction {
     // 0nnn SYS addr
     Sys(u16),
@@ -10,10 +10,10 @@ pub enum Instruction {
     Return,
 
     // 1nnn JP addr
-    Jump(u8),
+    Jump(u16),
 
     // 2nnn CALL addr
-    Call(u8),
+    Call(u16),
 
     // 3xkk SE Vx, byte
     SkipIfEqual(u8, u8),
