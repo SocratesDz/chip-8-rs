@@ -42,13 +42,13 @@ pub fn parse_instruction(source: [u8; 2]) -> Result<Instruction, ParseInstructio
             Ok(Instruction::SubReg(upper & 0xF, lower >> 4))
         }
         [upper, lower] if upper >> 4 == 0x8 && lower << 4 == 0x60 => {
-            Ok(Instruction::SHR(upper & 0xF, Some(lower >> 4)))
+            Ok(Instruction::ShiftRight(upper & 0xF, Some(lower >> 4)))
         }
         [upper, lower] if upper >> 4 == 0x8 && lower << 4 == 0x70 => {
             Ok(Instruction::SubN(upper & 0xF, lower >> 4))
         }
         [upper, lower] if upper >> 4 == 0x8 && lower << 4 == 0xE0 => {
-            Ok(Instruction::SHL(upper & 0xF, Some(lower >> 4)))
+            Ok(Instruction::ShiftLeft(upper & 0xF, Some(lower >> 4)))
         }
         [upper, lower] if upper >> 4 == 0x9 && lower << 4 == 0x00 => {
             Ok(Instruction::SkipIfNotEqualReg(upper & 0xF, lower >> 4))
@@ -76,6 +76,6 @@ pub fn parse_instruction(source: [u8; 2]) -> Result<Instruction, ParseInstructio
         [upper, 0x33] if upper >> 4 == 0xF => Ok(Instruction::StoreBCD(upper & 0xF)),
         [upper, 0x55] if upper >> 4 == 0xF => Ok(Instruction::StoreRegRange(upper & 0xF)),
         [upper, 0x65] if upper >> 4 == 0xF => Ok(Instruction::LoadRegRange(upper & 0xF)),
-        _ => Err(ParseInstructionError),
+        _ => Ok(Instruction::Data(u16::from_be_bytes(source))),
     }
 }
