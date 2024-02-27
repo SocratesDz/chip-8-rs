@@ -14,7 +14,7 @@ mod test {
     fn assert_instruction(input: [u8; 2], output: Instruction) {
         let instruction = parse_instruction(input);
 
-        assert_eq!(instruction, Ok(output));
+        assert_eq!(instruction, output);
     }
 
     #[test]

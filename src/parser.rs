@@ -3,80 +3,45 @@ use crate::instructions::Instruction;
 #[derive(PartialEq, Eq, Debug)]
 pub struct ParseInstructionError;
 
-pub fn parse_instruction(source: [u8; 2]) -> Result<Instruction, ParseInstructionError> {
-    match source {
-        [0x00u8, 0xE0u8] => Ok(Instruction::ClearScreen),
-        [0x00u8, 0xEEu8] => Ok(Instruction::Return),
-        [upper, _] if upper >> 4 == 0x0 => Ok(Instruction::Sys(u16::from_be_bytes(source))),
-        [upper, lower] if upper >> 4 == 0x1 => Ok(Instruction::Jump(u16::from_be_bytes([
-            upper ^ (1 << 4),
-            lower,
-        ]))),
-        [upper, lower] if upper >> 4 == 0x2 => Ok(Instruction::Call(u16::from_be_bytes([
-            upper ^ (2 << 4),
-            lower,
-        ]))),
-        [upper, lower] if upper >> 4 == 0x3 => Ok(Instruction::SkipIfEqual(upper & 0xF, lower)),
-        [upper, lower] if upper >> 4 == 0x4 => Ok(Instruction::SkipIfNotEqual(upper & 0xF, lower)),
-        [upper, lower] if upper >> 4 == 0x5 && lower << 4 == 0x0 => {
-            Ok(Instruction::SkipIfEqualReg(upper & 0xF, lower >> 4))
-        }
-        [upper, lower] if upper >> 4 == 0x6 => Ok(Instruction::Set(upper & 0xF, lower)),
-        [upper, lower] if upper >> 4 == 0x7 => Ok(Instruction::Add(upper & 0xF, lower)),
-        [upper, lower] if upper >> 4 == 0x8 && lower << 4 == 0x0 => {
-            Ok(Instruction::SetReg(upper & 0xF, lower >> 4))
-        }
-        [upper, lower] if upper >> 4 == 0x8 && lower << 4 == 0x10 => {
-            Ok(Instruction::Or(upper & 0xF, lower >> 4))
-        }
-        [upper, lower] if upper >> 4 == 0x8 && lower << 4 == 0x20 => {
-            Ok(Instruction::And(upper & 0xF, lower >> 4))
-        }
-        [upper, lower] if upper >> 4 == 0x8 && lower << 4 == 0x30 => {
-            Ok(Instruction::Xor(upper & 0xF, lower >> 4))
-        }
-        [upper, lower] if upper >> 4 == 0x8 && lower << 4 == 0x40 => {
-            Ok(Instruction::AddReg(upper & 0xF, lower >> 4))
-        }
-        [upper, lower] if upper >> 4 == 0x8 && lower << 4 == 0x50 => {
-            Ok(Instruction::SubReg(upper & 0xF, lower >> 4))
-        }
-        [upper, lower] if upper >> 4 == 0x8 && lower << 4 == 0x60 => {
-            Ok(Instruction::ShiftRight(upper & 0xF, Some(lower >> 4)))
-        }
-        [upper, lower] if upper >> 4 == 0x8 && lower << 4 == 0x70 => {
-            Ok(Instruction::SubN(upper & 0xF, lower >> 4))
-        }
-        [upper, lower] if upper >> 4 == 0x8 && lower << 4 == 0xE0 => {
-            Ok(Instruction::ShiftLeft(upper & 0xF, Some(lower >> 4)))
-        }
-        [upper, lower] if upper >> 4 == 0x9 && lower << 4 == 0x00 => {
-            Ok(Instruction::SkipIfNotEqualReg(upper & 0xF, lower >> 4))
-        }
-        [upper, lower] if upper >> 4 == 0xA => Ok(Instruction::SetI(u16::from_be_bytes([
-            upper ^ (0xA << 4),
-            lower,
-        ]))),
-        [upper, lower] if upper >> 4 == 0xB => Ok(Instruction::JumpToPlusV0(u16::from_be_bytes([
-            upper ^ (0xB << 4),
-            lower,
-        ]))),
-        [upper, lower] if upper >> 4 == 0xC => Ok(Instruction::SetRandom(upper & 0xF, lower)),
-        [upper, lower] if upper >> 4 == 0xD => {
-            Ok(Instruction::Display(upper & 0xF, lower >> 4, lower & 0xF))
-        }
-        [upper, 0x9E] if upper >> 4 == 0xE => Ok(Instruction::SkipIfKeyPressed(upper & 0xF)),
-        [upper, 0xA1] if upper >> 4 == 0xE => Ok(Instruction::SkipIfKeyNotPressed(upper & 0xF)),
-        [upper, 0x07] if upper >> 4 == 0xF => Ok(Instruction::SetDelayTimer(upper & 0xF)),
-        [upper, 0x0A] if upper >> 4 == 0xF => Ok(Instruction::WaitForKey(upper & 0xF)),
-        [upper, 0x15] if upper >> 4 == 0xF => Ok(Instruction::SetDelayTimerReg(upper & 0xF)),
-        [upper, 0x18] if upper >> 4 == 0xF => Ok(Instruction::SetSoundTimerReg(upper & 0xF)),
-        [upper, 0x1E] if upper >> 4 == 0xF => Ok(Instruction::AddToI(upper & 0xF)),
-        [upper, 0x29] if upper >> 4 == 0xF => Ok(Instruction::SetSpriteLocation(upper & 0xF)),
-        [upper, 0x33] if upper >> 4 == 0xF => Ok(Instruction::StoreBCD(upper & 0xF)),
-        [upper, 0x55] if upper >> 4 == 0xF => Ok(Instruction::StoreRegRange(upper & 0xF)),
-        [upper, 0x65] if upper >> 4 == 0xF => Ok(Instruction::LoadRegRange(upper & 0xF)),
-        _ => Ok(Instruction::Data(u16::from_be_bytes(source))),
+pub fn parse_instruction(source: [u8; 2]) -> Instruction {
+    let [high, low] = source;
+    match high >> 4 {
+        0x0 if low == 0xE0 => Instruction::ClearScreen,
+        0x0 if low == 0xEE => Instruction::Return,
+        0x0 => Instruction::Sys(u16::from_be_bytes(source)),
+        0x1 => Instruction::Jump(u16::from_be_bytes([high ^ (1 << 4), low])),
+        0x2 => Instruction::Call(u16::from_be_bytes([high ^ (2 << 4), low])),
+        0x3 => Instruction::SkipIfEqual(high & 0xF, low),
+        0x4 => Instruction::SkipIfNotEqual(high & 0xF, low),
+        0x5 => Instruction::SkipIfEqualReg(high & 0xF, low >> 4),
+        0x6 => Instruction::Set(high & 0xF, low),
+        0x7 => Instruction::Add(high & 0xF, low),
+        0x8 if low << 4 == 0x0 => Instruction::SetReg(high & 0xF, low >> 4),
+        0x8 if low << 4 == 0x10 => Instruction::Or(high & 0xF, low >> 4),
+        0x8 if low << 4 == 0x20 => Instruction::And(high & 0xF, low >> 4),
+        0x8 if low << 4 == 0x30 => Instruction::Xor(high & 0xF, low >> 4),
+        0x8 if low << 4 == 0x40 => Instruction::AddReg(high & 0xF, low >> 4),
+        0x8 if low << 4 == 0x50 => Instruction::SubReg(high & 0xF, low >> 4),
+        0x8 if low << 4 == 0x60 => Instruction::ShiftRight(high & 0xF, Some(low >> 4)),
+        0x8 if low << 4 == 0x70 => Instruction::SubN(high & 0xF, low >> 4),
+        0x8 if low << 4 == 0xE0 => Instruction::ShiftLeft(high & 0xF, Some(low >> 4)),
+        0x9 if low << 4 == 0x00 => Instruction::SkipIfNotEqualReg(high & 0xF, low >> 4),
+        0xA => Instruction::SetI(u16::from_be_bytes([high ^ (0xA << 4), low])),
+        0xB => Instruction::JumpToPlusV0(u16::from_be_bytes([high ^ (0xB << 4), low])),
+        0xC => Instruction::SetRandom(high & 0xF, low),
+        0xD => Instruction::Display(high & 0xF, low >> 4, low & 0xF),
+        0xE if low == 0x9E => Instruction::SkipIfKeyPressed(high & 0xF),
+        0xE if low == 0xA1 => Instruction::SkipIfKeyNotPressed(high & 0xF),
+        0xF if low == 0x07 => Instruction::SetDelayTimer(high & 0xF),
+        0xF if low == 0x0A => Instruction::WaitForKey(high & 0xF),
+        0xF if low == 0x15 => Instruction::SetDelayTimerReg(high & 0xF),
+        0xF if low == 0x18 => Instruction::SetSoundTimerReg(high & 0xF),
+        0xF if low == 0x1E => Instruction::AddToI(high & 0xF),
+        0xF if low == 0x29 => Instruction::SetSpriteLocation(high & 0xF),
+        0xF if low == 0x33 => Instruction::StoreBCD(high & 0xF),
+        0xF if low == 0x55 => Instruction::StoreRegRange(high & 0xF),
+        0xF if low == 0x65 => Instruction::LoadRegRange(high & 0xF),
+        _ => Instruction::Data(u16::from_be_bytes(source)),
     }
 }
 
@@ -107,7 +72,7 @@ mod test {
         let _ = DATA.take(8).read_to_end(&mut instructions_bytes);
         let instructions = instructions_bytes
             .chunks(2)
-            .flat_map(|chunk| parse_instruction([chunk[0], chunk[1]]))
+            .map(|chunk| parse_instruction([chunk[0], chunk[1]]))
             .collect::<Vec<Instruction>>();
         assert_eq!(
             instructions,
@@ -124,7 +89,7 @@ mod test {
     fn parse_instructions_file() {
         let instructions = DATA
             .chunks(2)
-            .flat_map(|chunk| parse_instruction([chunk[0], chunk[1]]))
+            .map(|chunk| parse_instruction([chunk[0], chunk[1]]))
             .collect::<Vec<Instruction>>();
         dbg!(instructions);
     }
