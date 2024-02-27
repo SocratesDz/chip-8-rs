@@ -1,194 +1,178 @@
-struct Context {
-    registers: [u8; 16],
-    i_register: u8,
-    delay_timer: u8,
-    sound_timer: u8,
-    program_counter: u8,
-    stack_pointer: u8,
+use std::default;
+
+use crate::{instructions::Instruction, parser::parse_instruction};
+
+#[derive(Default)]
+pub struct Context {
+    pub registers: [u8; 16],
+    pub i_register: u16,
+    pub delay_timer: u8,
+    pub sound_timer: u8,
+    pub program_counter: u8,
+    pub stack_pointer: Vec<u8>,
+    pub data: Vec<u8>,
+    pub keyboard_input: Option<u8>,
+}
+
+impl Context {
+    fn init(data: &[u8]) -> Context {
+        Context {
+            data: Vec::from(data),
+            ..Default::default()
+        }
+    }
+
+    fn step(&mut self) {
+        let bytes: [u8; 2] = [
+            self.data[self.program_counter as usize],
+            self.data[(self.program_counter + 1) as usize],
+        ];
+        let instruction = parse_instruction(bytes);
+
+        match instruction {
+            Instruction::ClearScreen => {
+                // Send clear screen command
+            }
+            Instruction::Sys(_) => {
+                // This is suppossed to set the program counter to a machine code routine. This can be ignored.
+            }
+            Instruction::Return => {
+                // Set the program counter to the address at the top of the SP
+            }
+            Instruction::Jump(_) => {
+                // Set the program counter to a new address
+            }
+            Instruction::Call(_) => {
+                // Increments the stack pointer, put the the current PC at the top of the stack. PC is set to address.
+            }
+            Instruction::SkipIfEqual(_, _) => {
+                // if Vx == kk { increment PC twice }
+            }
+            Instruction::SkipIfNotEqual(_, _) => {
+                // if Vx != kk { increment PC twice }
+            }
+            Instruction::SkipIfEqualReg(_, _) => {
+                // if Vx == Vy { increment PC twice }
+            }
+            Instruction::Set(_, _) => {
+                // Vx = kk
+            }
+            Instruction::Add(_, _) => {
+                // Vx = Vx + kk
+            }
+            Instruction::SetReg(_, _) => {
+                // Vx = Vy
+            }
+            Instruction::Or(_, _) => {
+                // Vx = Vx | Vy
+            }
+            Instruction::And(_, _) => {
+                // Vx = Vx & Vy
+            }
+            Instruction::Xor(_, _) => {
+                // Vx = Vx ^ Vy
+            }
+            Instruction::AddReg(_, _) => {
+                // let sum = Vx + Vy
+                // if sum > 0xFF { VF = 0x1 }
+                // Vx = (sum << 4) >> 4
+            }
+            Instruction::SubReg(_, _) => {
+                // let sub = Vx - Vy
+                // VF = Vx > Vy
+                // Vx = sub
+            }
+            Instruction::ShiftRight(_, _) => {
+                // Vx = Vx << (Vy or 1)
+                // VF = ?
+            }
+            Instruction::SubN(_, _) => {
+                // Vx = Vy - Vx
+                // VF = Vy > Vx
+            }
+            Instruction::ShiftLeft(_, _) => {
+                // Vx = Vx >> (Vy or 1)
+                // VF = ?
+            }
+            Instruction::SkipIfNotEqualReg(_, _) => {
+                // if Vx != Vy { increment PC twice }
+            }
+            Instruction::SetI(address) => {
+                self.i_register = address;
+            }
+            Instruction::JumpToPlusV0(_) => {
+                // PC set to nnn + V0
+            }
+            Instruction::SetRandom(_, _) => {
+                // Vx = random | kk
+            }
+            Instruction::Display(_, _, _) => {
+                // let sprites = [I..n]
+                // Send Draw(sprites, x, y)
+                // - values from the Draw command should be XORed on the existing screen
+                // - if any pixel is erased, VF = 1 else 0
+                // - use modulo for the coordinates of the display
+            }
+            Instruction::SkipIfKeyPressed(_) => {
+                // - if keyboard_input == x { increment PC twice }
+            }
+            Instruction::SkipIfKeyNotPressed(_) => {
+                // - if keyboard_input != x { increment PC twice }
+            }
+            Instruction::SetDelayTimer(_) => {
+                // Vx = delay_timer
+            }
+            Instruction::WaitForKey(_) => {
+                // Stops execution. Wait for key press
+                // Vx = key
+            }
+            Instruction::SetDelayTimerReg(_) => {
+                // delay_timer = Vx
+            }
+            Instruction::SetSoundTimerReg(_) => {
+                // sound_timer = Vx
+            }
+            Instruction::AddToI(_) => {
+                // i_register = i_register + Vx
+            }
+            Instruction::SetSpriteLocation(_) => {
+                // i_register = sprite_location[Vx]
+            }
+            Instruction::StoreBCD(_) => {
+                // let bcd = BCD(Vx)
+                // memory_map[i_register] = BCD.0
+                // memory_map[i_register+1] = BCD.1
+                // memory_map[i_register+2] = BCD.2
+            }
+            Instruction::StoreRegRange(_) => {
+                // for i in 0..=x {
+                //     memory_map[i_register + i] = i_register + i
+                // }
+            }
+            Instruction::LoadRegRange(_) => {
+                // for i in 0..=x {
+                //     V[i] = memory_map[i_register + i]
+                // }
+            }
+            Instruction::Data(_) => todo!(),
+        }
+
+        self.program_counter += 2;
+    }
 }
 
 #[cfg(test)]
 mod test {
-    use crate::{instructions::Instruction, parser::parse_instruction};
 
-    fn assert_instruction(input: [u8; 2], output: Instruction) {
-        let instruction = parse_instruction(input);
-
-        assert_eq!(instruction, output);
-    }
+    use super::Context;
 
     #[test]
-    fn read_sys_instruction() {
-        assert_instruction([0x07, 0x23], Instruction::Sys(0x723))
-    }
+    fn set_i_register_in_context() {
+        let test_data = [0x00, 0xE0, 0xA0, 0x12, 0x00, 0xE0];
+        let mut context = Context::init(&test_data);
+        context.step();
+        context.step();
 
-    #[test]
-    fn read_clear_screen_instruction() {
-        assert_instruction([0x00, 0xE0], Instruction::ClearScreen)
-    }
-
-    #[test]
-    fn read_return_instruction() {
-        assert_instruction([0x00, 0xEE], Instruction::Return)
-    }
-
-    #[test]
-    fn read_jump_instruction() {
-        assert_instruction([0x14, 0x20], Instruction::Jump(0x420))
-    }
-
-    #[test]
-    fn read_call_instruction() {
-        assert_instruction([0x29, 0xA2], Instruction::Call(0x9A2))
-    }
-
-    #[test]
-    fn read_skip_if_equal_instruction() {
-        assert_instruction([0x38, 0x58], Instruction::SkipIfEqual(0x8, 0x58))
-    }
-
-    #[test]
-    fn read_skip_if_not_equal_instruction() {
-        assert_instruction([0x42, 0x13], Instruction::SkipIfNotEqual(0x2, 0x13))
-    }
-
-    #[test]
-    fn read_skip_if_equal_with_register_instruction() {
-        assert_instruction([0x53, 0x40], Instruction::SkipIfEqualReg(0x3, 0x4))
-    }
-
-    #[test]
-    fn read_set_instruction() {
-        assert_instruction([0x60, 0x20], Instruction::Set(0x0, 0x20))
-    }
-
-    #[test]
-    fn read_add_instruction() {
-        assert_instruction([0x71, 0x42], Instruction::Add(0x1, 0x42))
-    }
-
-    #[test]
-    fn read_set_with_register_instruction() {
-        assert_instruction([0x85, 0x70], Instruction::SetReg(0x5, 0x7))
-    }
-
-    #[test]
-    fn read_or_instruction() {
-        assert_instruction([0x86, 0x31], Instruction::Or(0x6, 0x3))
-    }
-
-    #[test]
-    fn read_and_instruction() {
-        assert_instruction([0x8C, 0xB2], Instruction::And(0xC, 0xB))
-    }
-
-    #[test]
-    fn read_xor_instruction() {
-        assert_instruction([0x8D, 0x53], Instruction::Xor(0xD, 0x5))
-    }
-
-    #[test]
-    fn read_add_with_register_instruction() {
-        assert_instruction([0x89, 0x14], Instruction::AddReg(0x9, 0x1))
-    }
-
-    #[test]
-    fn read_sub_with_register_instruction() {
-        assert_instruction([0x8A, 0x25], Instruction::SubReg(0xA, 0x2))
-    }
-
-    #[test]
-    fn read_shr_instruction() {
-        assert_instruction([0x88, 0x76], Instruction::ShiftRight(0x8, Some(0x7)))
-    }
-
-    #[test]
-    fn read_sub_inverted_instruction() {
-        assert_instruction([0x80, 0x97], Instruction::SubN(0x0, 0x9))
-    }
-
-    #[test]
-    fn read_shl_instruction() {
-        assert_instruction([0x82, 0x2E], Instruction::ShiftLeft(0x2, Some(0x2)))
-    }
-
-    #[test]
-    fn read_skip_if_not_equal_with_register_instruction() {
-        assert_instruction([0x91, 0x00], Instruction::SkipIfNotEqualReg(0x1, 0x0))
-    }
-
-    #[test]
-    fn read_set_i_instruction() {
-        assert_instruction([0xA2, 0x77], Instruction::SetI(0x277))
-    }
-
-    #[test]
-    fn read_jump_to_plus_v0() {
-        assert_instruction([0xB3, 0x51], Instruction::JumpToPlusV0(0x351))
-    }
-
-    #[test]
-    fn read_set_random_instruction() {
-        assert_instruction([0xC9, 0x88], Instruction::SetRandom(0x9, 0x88))
-    }
-
-    #[test]
-    fn read_display_instruction() {
-        assert_instruction([0xD0, 0xCA], Instruction::Display(0x0, 0xC, 0xA))
-    }
-
-    #[test]
-    fn read_skip_if_key_pressed_instruction() {
-        assert_instruction([0xE7, 0x9E], Instruction::SkipIfKeyPressed(0x7))
-    }
-
-    #[test]
-    fn read_skip_if_key_not_pressed_instruction() {
-        assert_instruction([0xE3, 0xA1], Instruction::SkipIfKeyNotPressed(0x3))
-    }
-
-    #[test]
-    fn read_set_delay_timer_instruction() {
-        assert_instruction([0xF1, 0x07], Instruction::SetDelayTimer(0x1))
-    }
-
-    #[test]
-    fn read_wait_for_key_instruction() {
-        assert_instruction([0xF8, 0x0A], Instruction::WaitForKey(0x8))
-    }
-
-    #[test]
-    fn read_set_delay_timer_with_register_instruction() {
-        assert_instruction([0xF6, 0x15], Instruction::SetDelayTimerReg(0x6))
-    }
-
-    #[test]
-    fn read_set_sound_timer_with_register_instruction() {
-        assert_instruction([0xF6, 0x18], Instruction::SetSoundTimerReg(0x6))
-    }
-
-    #[test]
-    fn read_add_to_i_instruction() {
-        assert_instruction([0xF2, 0x1E], Instruction::AddToI(0x2))
-    }
-
-    #[test]
-    fn read_set_sprite_location_instruction() {
-        assert_instruction([0xF9, 0x29], Instruction::SetSpriteLocation(0x9))
-    }
-
-    #[test]
-    fn read_store_bcd_instruction() {
-        assert_instruction([0xF5, 0x33], Instruction::StoreBCD(0x5))
-    }
-
-    #[test]
-    fn read_store_register_range_instruction() {
-        assert_instruction([0xF1, 0x55], Instruction::StoreRegRange(0x1))
-    }
-
-    #[test]
-    fn read_load_register_range_instruction() {
-        assert_instruction([0xFD, 0x65], Instruction::LoadRegRange(0xD))
+        assert_eq!(context.i_register, 0x012);
     }
 }
