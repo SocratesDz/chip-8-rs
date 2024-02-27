@@ -1,3 +1,12 @@
+struct Context {
+    registers: [u8; 16],
+    i_register: u8,
+    delay_timer: u8,
+    sound_timer: u8,
+    program_counter: u8,
+    stack_pointer: u8,
+}
+
 #[cfg(test)]
 mod test {
     use crate::{instructions::Instruction, parser::parse_instruction};
