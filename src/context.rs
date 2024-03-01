@@ -18,13 +18,14 @@ pub struct Context {
 impl Context {
     pub fn new(data: &[u8]) -> Context {
         let mut memory = Vec::new();
-        for _ in 0..0x1FF {
+        for _ in 0x000..0x200 {
             memory.push(0u8);
         } 
         memory.append(&mut Vec::from(data));
         Context {
             data: Vec::from(data),
             memory_map: memory,
+            program_counter: 0x200,
             ..Default::default()
         }
     }
@@ -39,10 +40,12 @@ impl Context {
         match instruction {
             Instruction::ClearScreen => {
                 // Send clear screen command
+                self.increment_program_counter(1)
             }
             Instruction::Sys(_) => {
                 // This is suppossed to set the program counter to a 
                 // machine code routine. This can be ignored.
+                self.increment_program_counter(1)
             }
             Instruction::Return => {
                 // Set the program counter to the address at the top of the SP
@@ -86,27 +89,33 @@ impl Context {
             }
             Instruction::Set(x, value) => {
                 // Vx = kk
-                self.registers[x as usize] = value
+                self.registers[x as usize] = value;
+                self.increment_program_counter(1)
             }
             Instruction::Add(x, value) => {
                 // Vx = Vx + kk
-                self.registers[x as usize] += value
+                self.registers[x as usize] += value;
+                self.increment_program_counter(1)
             }
             Instruction::SetReg(x, y) => {
                 // Vx = Vy
-                self.registers[x as usize] = self.registers[y as usize]
+                self.registers[x as usize] = self.registers[y as usize];
+                self.increment_program_counter(1)
             }
             Instruction::Or(x, y) => {
                 // Vx = Vx | Vy
-                self.registers[x as usize] |= self.registers[y as usize]
+                self.registers[x as usize] |= self.registers[y as usize];
+                self.increment_program_counter(1)
             }
             Instruction::And(x, y) => {
                 // Vx = Vx & Vy
-                self.registers[x as usize] &= self.registers[y as usize]
+                self.registers[x as usize] &= self.registers[y as usize];
+                self.increment_program_counter(1)
             }
             Instruction::Xor(x, y) => {
                 // Vx = Vx ^ Vy
-                self.registers[x as usize] ^= self.registers[y as usize]
+                self.registers[x as usize] ^= self.registers[y as usize];
+                self.increment_program_counter(1)
             }
             Instruction::AddReg(x, y) => {
                 // let sum = Vx + Vy
@@ -116,7 +125,8 @@ impl Context {
                 if sum > 0xFF {
                     self.registers[0xF] = 0x1
                 }
-                self.registers[x as usize] = ((sum << 4) >> 4) as u8
+                self.registers[x as usize] = ((sum << 4) >> 4) as u8;
+                self.increment_program_counter(1)
             }
             Instruction::SubReg(x, y) => {
                 // let sub = Vx - Vy
@@ -140,13 +150,16 @@ impl Context {
                 if self.registers[x as usize] != self.registers[y as usize] {
                     self.increment_program_counter(2)
                 }
+                self.increment_program_counter(1)
             }
             Instruction::SetI(address) => {
                 self.i_register = address;
+                self.increment_program_counter(1)
             }
             Instruction::JumpToPlusV0(address) => {
                 // PC set to nnn + V0
-                self.program_counter = address + (self.registers[0] as u16)
+                self.program_counter = address + (self.registers[0] as u16);
+                self.increment_program_counter(1)
             }
             Instruction::SetRandom(x, value) => {
                 // Vx = random | kk
@@ -199,7 +212,9 @@ impl Context {
                 //     V[i] = memory_map[i_register + i]
                 // }
             }
-            Instruction::Data(_) => todo!(),
+            _ => {
+                self.increment_program_counter(1);
+            },
         }
     }
 
