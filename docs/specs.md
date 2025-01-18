@@ -31,6 +31,18 @@
 ### Display
 - 64x32 pixel monochrome display. 2:1 aspect ratio
 - (Super Chip-48 supports 128x64 pixel)
+- Sprites may be up to 15 bytes, for a possible sprite size of 8x15 pixels. Each pixel is represented by a bit.
+  - e.g., this is a sprite of size 8x5 that represents a drawing of the number 0: 
+  ```
+  | "0"  | Binary   | Hex  |
+  |------+----------+------|
+  | **** | 11110000 | 0xF0 |
+  | *  * | 10010000 | 0x90 |
+  | *  * | 10010000 | 0x90 |
+  | *  * | 10010000 | 0x90 |
+  | **** | 11110000 | 0xF0 |
+  ```
+
 
 ### Timers & sound
 - `DT` is active whenever its register is non-zero. It substracts 1 from the value of DT at a rate of **60Hz**. It deactivates when it reaches 0.

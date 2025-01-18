@@ -3,7 +3,10 @@ pub enum Instruction {
     // 0nnn SYS addr
     Sys(u16),
 
-    // 00E0 CLS
+    /**
+     *  Send clear screen command.
+     *  00E0 CLS
+     */
     ClearScreen,
 
     // 00EE RET

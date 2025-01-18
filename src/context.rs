@@ -22,7 +22,7 @@ impl Context {
         }
     }
 
-    fn step(&mut self) {
+    fn step(&mut self) -> Instruction {
         let bytes: [u8; 2] = [
             self.data[self.program_counter as usize],
             self.data[(self.program_counter + 1) as usize],
@@ -158,6 +158,8 @@ impl Context {
         }
 
         self.program_counter += 2;
+
+        return instruction;
     }
 }
 
