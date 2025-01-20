@@ -1,4 +1,4 @@
-use std::default;
+use std::{default, ops::Index};
 
 use crate::{instructions::Instruction, parser::parse_instruction};
 
@@ -14,6 +14,7 @@ pub struct Context {
     pub keyboard_input: Option<u8>,
     pub memory_map: Vec<u8>,
     pub graphics_buffer: Vec<Vec<u8>>,
+    pub key_pressed: u8,
 }
 
 impl Context {
@@ -40,6 +41,11 @@ impl Context {
         match instruction {
             Instruction::ClearScreen => {
                 // Send clear screen command
+                for i in 0..self.graphics_buffer.len() {
+                    for j in 0..self.graphics_buffer[i].len() {
+                        self.graphics_buffer[i][j] = 0;
+                    }
+                }
                 self.increment_program_counter(1)
             }
             Instruction::Sys(_) => {
@@ -50,7 +56,9 @@ impl Context {
             Instruction::Return => {
                 // Set the program counter to the address at the top of the SP
                 if let Some(address) = self.stack_pointer.pop() {
-                    self.program_counter = address
+                    self.program_counter = address;
+                } else {
+                    self.increment_program_counter(1);
                 }
             }
             Instruction::Jump(address) => {
@@ -122,9 +130,7 @@ impl Context {
                 // if sum > 0xFF { VF = 0x1 }
                 // Vx = (sum << 4) >> 4
                 let sum = (self.registers[x as usize] as u16) + (self.registers[y as usize] as u16);
-                if sum > 0xFF {
-                    self.registers[0xF] = 0x1
-                }
+                self.registers[0xF] = if sum > 0xFF { 0x1 } else { 0x0 };
                 self.registers[x as usize] = ((sum << 4) >> 4) as u8;
                 self.increment_program_counter(1)
             }
@@ -132,18 +138,29 @@ impl Context {
                 // let sub = Vx - Vy
                 // VF = Vx > Vy
                 // Vx = sub
+                self.registers[0xF] =
+                    (self.registers[x as usize] > self.registers[y as usize]) as u8;
+                self.registers[x as usize] -= self.registers[y as usize];
             }
             Instruction::ShiftRight(x, y) => {
-                // Vx = Vx << (Vy or 1)
-                // VF = ?
+                // Vx = Vx >> (Vy or 1)
+                // VF = Least-signficant bit
+                self.registers[0xF] = self.registers[x as usize] & 1;
+                self.registers[x as usize] >>= self.registers[y as usize];
             }
             Instruction::SubN(x, y) => {
                 // Vx = Vy - Vx
                 // VF = Vy > Vx
+                self.registers[0xF] =
+                    (self.registers[y as usize] > self.registers[x as usize]) as u8;
+                self.registers[x as usize] =
+                    self.registers[y as usize] - self.registers[x as usize];
             }
             Instruction::ShiftLeft(x, y) => {
-                // Vx = Vx >> (Vy or 1)
-                // VF = ?
+                // Vx = Vx << (Vy or 1)
+                // VF = Most-significant bit
+                self.registers[0xF] = (self.registers[x as usize] & 0x80) >> 7;
+                self.registers[x as usize] <<= self.registers[y as usize];
             }
             Instruction::SkipIfNotEqualReg(x, y) => {
                 // if Vx != Vy { increment PC twice }
@@ -163,6 +180,7 @@ impl Context {
             }
             Instruction::SetRandom(x, value) => {
                 // Vx = random | kk
+                // TODO: Implement random number generator
             }
             Instruction::Display(x, y, n) => {
                 // let sprites = [I..n]
@@ -189,28 +207,42 @@ impl Context {
             }
             Instruction::SkipIfKeyPressed(key) => {
                 // - if keyboard_input == x { increment PC twice }
+                if self.key_pressed == key {
+                    self.increment_program_counter(2);
+                } else {
+                    self.increment_program_counter(1);
+                }
             }
             Instruction::SkipIfKeyNotPressed(key) => {
                 // - if keyboard_input != x { increment PC twice }
+                if self.key_pressed != key {
+                    self.increment_program_counter(2);
+                }
             }
             Instruction::SetDelayTimer(x) => {
                 // Vx = delay_timer
+                self.delay_timer = x;
             }
             Instruction::WaitForKey(x) => {
                 // Stops execution. Wait for key press
                 // Vx = key
+                self.key_pressed = x;
             }
             Instruction::SetDelayTimerReg(x) => {
                 // delay_timer = Vx
+                self.delay_timer = self.registers[x as usize];
             }
             Instruction::SetSoundTimerReg(x) => {
                 // sound_timer = Vx
+                self.sound_timer = self.registers[x as usize];
             }
             Instruction::AddToI(x) => {
                 // i_register = i_register + Vx
+                self.i_register += self.registers[x as usize] as u16;
             }
             Instruction::SetSpriteLocation(x) => {
                 // i_register = sprite_location[Vx]
+                self.i_register = self.registers[x as usize] as u16;
             }
             Instruction::StoreBCD(x) => {
                 // let bcd = BCD(Vx)

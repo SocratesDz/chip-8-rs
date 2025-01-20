@@ -22,9 +22,9 @@ pub fn parse_instruction(source: [u8; 2]) -> Instruction {
         0x8 if low << 4 == 0x30 => Instruction::Xor(high & 0xF, low >> 4),
         0x8 if low << 4 == 0x40 => Instruction::AddReg(high & 0xF, low >> 4),
         0x8 if low << 4 == 0x50 => Instruction::SubReg(high & 0xF, low >> 4),
-        0x8 if low << 4 == 0x60 => Instruction::ShiftRight(high & 0xF, Some(low >> 4)),
+        0x8 if low << 4 == 0x60 => Instruction::ShiftRight(high & 0xF, low >> 4),
         0x8 if low << 4 == 0x70 => Instruction::SubN(high & 0xF, low >> 4),
-        0x8 if low << 4 == 0xE0 => Instruction::ShiftLeft(high & 0xF, Some(low >> 4)),
+        0x8 if low << 4 == 0xE0 => Instruction::ShiftLeft(high & 0xF, low >> 4),
         0x9 if low << 4 == 0x00 => Instruction::SkipIfNotEqualReg(high & 0xF, low >> 4),
         0xA => Instruction::SetI(u16::from_be_bytes([high ^ (0xA << 4), low])),
         0xB => Instruction::JumpToPlusV0(u16::from_be_bytes([high ^ (0xB << 4), low])),
@@ -169,7 +169,7 @@ mod test {
 
     #[test]
     fn read_shr_instruction() {
-        assert_instruction([0x88, 0x76], Instruction::ShiftRight(0x8, Some(0x7)))
+        assert_instruction([0x88, 0x76], Instruction::ShiftRight(0x8, 0x7))
     }
 
     #[test]
@@ -179,7 +179,7 @@ mod test {
 
     #[test]
     fn read_shl_instruction() {
-        assert_instruction([0x82, 0x2E], Instruction::ShiftLeft(0x2, Some(0x2)))
+        assert_instruction([0x82, 0x2E], Instruction::ShiftLeft(0x2, 0x2))
     }
 
     #[test]

@@ -54,14 +54,14 @@ pub enum Instruction {
     SubReg(u8, u8),
 
     // 8xy6 SHR Vx {, Vy}
-    ShiftRight(u8, Option<u8>),
+    ShiftRight(u8, u8),
 
     // 8xy7 SUBN Vx, Vy
     // Set VF = NOT borrow
     SubN(u8, u8),
 
     // 8xyE SHL Vx {, Vy}
-    ShiftLeft(u8, Option<u8>),
+    ShiftLeft(u8, u8),
 
     // 9xy0 SNE Vx, Vy
     SkipIfNotEqualReg(u8, u8),
