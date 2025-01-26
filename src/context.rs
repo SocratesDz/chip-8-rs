@@ -1,8 +1,7 @@
-use std::{default, ops::Index};
+use rand::{rngs::SmallRng, Rng, SeedableRng};
 
 use crate::{instructions::Instruction, parser::parse_instruction};
 
-#[derive(Default)]
 pub struct Context {
     pub registers: [u8; 16],
     pub i_register: u16,
@@ -15,23 +14,33 @@ pub struct Context {
     pub memory_map: Vec<u8>,
     pub graphics_buffer: Vec<Vec<u8>>,
     pub key_pressed: u8,
+    rng: SmallRng,
 }
 
 impl Context {
-    pub fn new(data: &[u8]) -> Context {
+    // Provide RNG seed
+    pub fn new(data: &[u8], seed: u64) -> Context {
         let mut memory = vec![0u8; 0x200];
         memory.append(&mut Vec::from(data));
         let mut graphics = vec![vec![0; 64]; 32];
+        let rng = SmallRng::seed_from_u64(seed);
         Context {
             data: Vec::from(data),
             memory_map: memory,
             program_counter: 0x200,
             graphics_buffer: graphics,
-            ..Default::default()
+            rng,
+            registers: [0; 16],
+            i_register: 0,
+            delay_timer: 0,
+            sound_timer: 0,
+            stack_pointer: vec![],
+            keyboard_input: None,
+            key_pressed: 0,
         }
     }
 
-    pub fn step(&mut self) -> Instruction {
+    pub fn tick(&mut self) -> Instruction {
         let bytes: [u8; 2] = [
             self.memory_map[self.program_counter as usize],
             self.memory_map[(self.program_counter + 1) as usize],
@@ -141,12 +150,14 @@ impl Context {
                 self.registers[0xF] =
                     (self.registers[x as usize] > self.registers[y as usize]) as u8;
                 self.registers[x as usize] -= self.registers[y as usize];
+                self.increment_program_counter(1)
             }
             Instruction::ShiftRight(x, y) => {
                 // Vx = Vx >> (Vy or 1)
                 // VF = Least-signficant bit
                 self.registers[0xF] = self.registers[x as usize] & 1;
                 self.registers[x as usize] >>= self.registers[y as usize];
+                self.increment_program_counter(1)
             }
             Instruction::SubN(x, y) => {
                 // Vx = Vy - Vx
@@ -155,12 +166,14 @@ impl Context {
                     (self.registers[y as usize] > self.registers[x as usize]) as u8;
                 self.registers[x as usize] =
                     self.registers[y as usize] - self.registers[x as usize];
+                self.increment_program_counter(1)
             }
             Instruction::ShiftLeft(x, y) => {
                 // Vx = Vx << (Vy or 1)
                 // VF = Most-significant bit
                 self.registers[0xF] = (self.registers[x as usize] & 0x80) >> 7;
                 self.registers[x as usize] <<= self.registers[y as usize];
+                self.increment_program_counter(1)
             }
             Instruction::SkipIfNotEqualReg(x, y) => {
                 // if Vx != Vy { increment PC twice }
@@ -179,8 +192,10 @@ impl Context {
                 self.increment_program_counter(1)
             }
             Instruction::SetRandom(x, value) => {
-                // Vx = random | kk
-                // TODO: Implement random number generator
+                // Vx = random & kk
+                let random = self.rng.gen::<u8>();
+                self.registers[x as usize] = random & value;
+                self.increment_program_counter(1)
             }
             Instruction::Display(x, y, n) => {
                 // let sprites = [I..n]
@@ -217,51 +232,61 @@ impl Context {
                 // - if keyboard_input != x { increment PC twice }
                 if self.key_pressed != key {
                     self.increment_program_counter(2);
+                } else {
+                    self.increment_program_counter(1);
                 }
             }
             Instruction::SetDelayTimer(x) => {
                 // Vx = delay_timer
                 self.delay_timer = x;
+                self.increment_program_counter(1);
             }
             Instruction::WaitForKey(x) => {
                 // Stops execution. Wait for key press
                 // Vx = key
                 self.key_pressed = x;
+                self.increment_program_counter(1);
             }
             Instruction::SetDelayTimerReg(x) => {
                 // delay_timer = Vx
                 self.delay_timer = self.registers[x as usize];
+                self.increment_program_counter(1);
             }
             Instruction::SetSoundTimerReg(x) => {
                 // sound_timer = Vx
                 self.sound_timer = self.registers[x as usize];
+                self.increment_program_counter(1);
             }
             Instruction::AddToI(x) => {
                 // i_register = i_register + Vx
                 self.i_register += self.registers[x as usize] as u16;
+                self.increment_program_counter(1);
             }
             Instruction::SetSpriteLocation(x) => {
                 // i_register = sprite_location[Vx]
                 self.i_register = self.registers[x as usize] as u16;
+                self.increment_program_counter(1);
             }
             Instruction::StoreBCD(x) => {
-                // let bcd = BCD(Vx)
-                // memory_map[i_register] = BCD.0
-                // memory_map[i_register+1] = BCD.1
-                // memory_map[i_register+2] = BCD.2
+                let value = self.registers[x as usize] as u16;
+                let bcd = dec_to_bcd(value);
+                self.memory_map[self.i_register as usize] = bcd.0;
+                self.memory_map[self.i_register as usize] = bcd.1;
+                self.memory_map[self.i_register as usize] = bcd.2;
+                self.increment_program_counter(1);
             }
             Instruction::StoreRegRange(x) => {
-                // for i in 0..=x {
-                //     memory_map[i_register + i] = i_register + i
-                // }
+                for i in 0..=x {
+                    let value = self.registers[i as usize];
+                    self.memory_map[(self.i_register + (i as u16)) as usize] = value;
+                }
+                self.increment_program_counter(1);
             }
             Instruction::LoadRegRange(x) => {
-                // for i in 0..=x {
-                //     V[i] = memory_map[i_register + i]
-                // }
-            }
-            Instruction::SetI(address) => {
-                self.i_register = address;
+                for i in 0..=x {
+                    let position = (self.i_register + (i as u16)) as usize;
+                    self.registers[i as usize] = self.memory_map[position];
+                }
                 self.increment_program_counter(1);
             }
             _ => {
@@ -275,6 +300,13 @@ impl Context {
     fn increment_program_counter(&mut self, times: u16) {
         self.program_counter += 2 * times;
     }
+}
+
+pub fn dec_to_bcd(n: u16) -> (u8, u8, u8) {
+    let hundreds = (n / 100) % 10;
+    let tens = (n / 10) % 10;
+    let digit = n % 10;
+    (hundreds as u8, tens as u8, digit as u8)
 }
 
 pub fn proccess_graphics_row(input: &mut Vec<u8>, x: u8, pixels: u8) -> bool {
@@ -306,14 +338,14 @@ pub fn proccess_graphics_row(input: &mut Vec<u8>, x: u8, pixels: u8) -> bool {
 #[cfg(test)]
 mod test {
 
-    use super::{proccess_graphics_row, Context};
+    use super::{dec_to_bcd, proccess_graphics_row, Context};
 
     #[test]
     fn set_i_register_in_context() {
         let test_data = [0x00, 0xE0, 0xA0, 0x12, 0x00, 0xE0];
-        let mut context = Context::new(&test_data);
-        context.step();
-        context.step();
+        let mut context = Context::new(&test_data, 1);
+        context.tick();
+        context.tick();
 
         assert_eq!(context.i_register, 0x012);
     }
@@ -352,13 +384,13 @@ mod test {
         let test_data = [
             0x00, 0xE0, 0xA2, 0x06, 0xD0, 0x05, 0x81, 0x81, 0xFF, 0x81, 0x81, 0x00,
         ];
-        let mut context = Context::new(&test_data);
-        context.step();
-        context.step();
+        let mut context = Context::new(&test_data, 1);
+        context.tick();
+        context.tick();
 
         assert_eq!(context.i_register, 0x206);
 
-        context.step();
+        context.tick();
 
         context.graphics_buffer.iter().for_each(|row| {
             println!(
@@ -368,5 +400,21 @@ mod test {
         });
 
         assert_eq!(context.registers[0xF], 0x0);
+    }
+
+    // Fuzzy testing could be useful for this
+    #[test]
+    fn test_bcd_conversions() {
+        let n = 134;
+        let result = dec_to_bcd(n);
+        assert_eq!(result, (1, 3, 4));
+
+        let n = 6893;
+        let result = dec_to_bcd(n);
+        assert_eq!(result, (8, 9, 3));
+
+        let n = 1;
+        let result = dec_to_bcd(n);
+        assert_eq!(result, (0, 0, 1));
     }
 }
