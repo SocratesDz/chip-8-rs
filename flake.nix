@@ -13,9 +13,31 @@
       in
       {
         defaultPackage = naersk-lib.buildPackage ./.;
-        devShell = with pkgs; mkShell {
-          buildInputs = [ cargo rustc rustfmt pre-commit rustPackages.clippy ];
+        devShell = with pkgs; mkShell rec {
+          buildInputs = [ 
+            cargo 
+            rustc 
+            rustfmt 
+            pre-commit 
+            rustPackages.clippy 
+            pkg-config 
+            libudev-zero
+            alsa-lib.dev
+            xorg.libXi
+            xorg.libX11
+            xorg.libXcursor
+            xorg.libXrandr
+            libGL.dev
+            libxkbcommon
+            mesa.dev
+          ];
           RUST_SRC_PATH = rustPlatform.rustLibSrc;
+          LD_LIBRARY_PATH = builtins.concatStringsSep ":" [
+            "${xorg.libX11}/lib"
+            "${xorg.libXi}/lib"
+            "${libGL}/lib"
+            "${libxkbcommon}/lib"
+          ];
         };
       });
 }
