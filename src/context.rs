@@ -22,7 +22,7 @@ impl Context {
     pub fn new(data: &[u8], seed: u64) -> Context {
         let mut memory = vec![0u8; 0x200];
         memory.append(&mut Vec::from(data));
-        let mut graphics = vec![vec![0; 64]; 32];
+        let graphics = vec![vec![0; 8]; 32];
         let rng = SmallRng::seed_from_u64(seed);
         Context {
             data: Vec::from(data),
@@ -300,6 +300,10 @@ impl Context {
     fn increment_program_counter(&mut self, times: u16) {
         self.program_counter += 2 * times;
     }
+
+    pub fn get_flat_graphics_buffer(&self) -> Vec<u8> {
+        self.graphics_buffer.iter().flatten().cloned().collect()
+    }
 }
 
 pub fn dec_to_bcd(n: u16) -> (u8, u8, u8) {
@@ -309,19 +313,22 @@ pub fn dec_to_bcd(n: u16) -> (u8, u8, u8) {
     (hundreds as u8, tens as u8, digit as u8)
 }
 
-pub fn proccess_graphics_row(input: &mut Vec<u8>, x: u8, pixels: u8) -> bool {
-    let index = (x as usize / 0xF) % input.len();
+pub fn proccess_graphics_row(input: &mut [u8], x: u8, pixels: u8) -> bool {
+    dbg!(&input, &x, &pixels);
+    let index = (x as usize / 8) % input.len();
     let octet = input[index] as usize;
     let mut collision: bool;
 
-    let result = octet ^ (pixels as usize >> x);
-    input[index] = result as u8;
-    collision = result != octet | (pixels as usize >> x);
+    let x_shift = x % 8;
 
-    let remainder = ((pixels >> x) << x) ^ pixels;
+    let result = octet ^ (pixels as usize >> x_shift);
+    input[index] = result as u8;
+    collision = result != octet | (pixels as usize >> x_shift);
+
+    let remainder = ((pixels >> x_shift) << x_shift) ^ pixels;
 
     if remainder > 0 {
-        let carry = remainder << (8 - x);
+        let carry = remainder << (8 - x_shift);
 
         if carry > 0 {
             let index = (index + 1) % input.len();
@@ -355,14 +362,8 @@ mod test {
         // Screen width: 64px
         const WIDTH: usize = 8;
         const HEIGHT: usize = 5;
-        let mut graphics_buffer = vec![
-            vec![0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0],
-            vec![0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0],
-            vec![0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0],
-            vec![0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0],
-            vec![0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0],
-        ];
-        let x: u8 = 0x7;
+        let mut graphics_buffer = vec![vec![0; WIDTH]; HEIGHT];
+        let x: u8 = 0x12;
         let y: u8 = 0x0;
 
         let pixels = [0x81, 0x81, 0xFF, 0x81, 0x81];
